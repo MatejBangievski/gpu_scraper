@@ -151,10 +151,12 @@ def extract_vram(desc):
     return None
 
 
-# def extract_model(desc):
+# def extract_model(desc, manufacturer):
+#     import re
+#
 #     desc_upper = desc.upper()
 #
-#     # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R, R5
+#     # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R5, R
 #     model_pattern = re.compile(
 #         r'((GTX|RTX|GT|RX|R5|R)(\s?\d{2,4}))', re.IGNORECASE)
 #
@@ -164,7 +166,6 @@ def extract_vram(desc):
 #
 #     raw_model = match.group(1).upper().replace(" ", "")  # e.g. GTX1050, R5230
 #
-#     # Extract prefix (GTX, RX, etc) and number separately
 #     prefix_match = re.match(r'(GTX|RTX|GT|RX|R5|R)(\d+)', raw_model)
 #     if not prefix_match:
 #         return None
@@ -172,101 +173,104 @@ def extract_vram(desc):
 #     prefix = prefix_match.group(1)
 #     number = prefix_match.group(2)
 #
-#     # Look for suffix (Ti, XT, XTX, Super, S)
-#     # Search after the matched model in the original string for suffixes
-#     suffix_pattern = re.compile(rf'{prefix}{number}[- ]?([A-Z0-9]+)?', re.IGNORECASE)
-#     suffix_match = suffix_pattern.search(desc.replace(" ", ""))
+#     manufacturer = manufacturer.lower() if manufacturer else ""
+#     if "nvidia" in manufacturer:
+#         allowed_suffixes = ['', 'ti', 'super', 'tisuper', 'ti super']
+#     elif "amd" in manufacturer:
+#         allowed_suffixes = ['', 'x', 'xt', 'xtx', 'gre']
+#     else:
+#         allowed_suffixes = ['']
+#
+#     # Regex to find suffix: allow optional dash or space between model and suffix
+#     # Suffix is expected to be letters and/or numbers immediately after model
+#     suffix_pattern = re.compile(
+#         rf'{prefix}\s*{number}[- ]*([a-z0-9]+)?', re.IGNORECASE)
 #
 #     suffix = ""
+#     suffix_match = suffix_pattern.search(desc)
 #     if suffix_match and suffix_match.group(1):
-#         raw_suffix = suffix_match.group(1).lower()
-#         if 'super' in raw_suffix or raw_suffix == 's':
-#             suffix = 'Super'
-#         elif 'ti' in raw_suffix:
-#             suffix = 'Ti'
-#         elif 'xtx' in raw_suffix:
-#             suffix = 'XTX'
-#         elif 'xt' in raw_suffix:
-#             suffix = 'XT'
-#         elif raw_suffix == 'x':
-#             suffix = 'X'
+#         raw_suffix = suffix_match.group(1).lower().replace(" ", "").replace("-", "")
 #
-#     # Format output with space and suffix if any
+#         # Normalize common combined suffixes
+#         if raw_suffix in ['tisuper', 'tisuper']:
+#             raw_suffix = 'tisuper'
+#
+#         if raw_suffix in allowed_suffixes:
+#             if raw_suffix == '':
+#                 suffix = ""
+#             elif raw_suffix == 'ti':
+#                 suffix = 'Ti'
+#             elif raw_suffix == 'super':
+#                 suffix = 'Super'
+#             elif raw_suffix == 'tisuper':
+#                 suffix = 'Ti Super'
+#             elif raw_suffix == 'x':
+#                 suffix = 'X'
+#             elif raw_suffix == 'xt':
+#                 suffix = 'XT'
+#             elif raw_suffix == 'xtx':
+#                 suffix = 'XTX'
+#             elif raw_suffix == 'gre':
+#                 suffix = 'GRE'
+#         else:
+#             suffix = ""
+#
 #     model_str = f"{prefix} {number}"
 #     if suffix:
 #         model_str += f" {suffix}"
 #
 #     return model_str
-
 def extract_model(desc, manufacturer):
-    import re
-
     desc_upper = desc.upper()
 
     # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R5, R
     model_pattern = re.compile(
-        r'((GTX|RTX|GT|RX|R5|R)(\s?\d{2,4}))', re.IGNORECASE)
+        r'(GTX|RTX|GT|RX|R5|R)\s?(\d{2,4})([A-Z0-9 ]*)', re.IGNORECASE)
 
     match = model_pattern.search(desc)
     if not match:
         return None
 
-    raw_model = match.group(1).upper().replace(" ", "")  # e.g. GTX1050, R5230
-
-    prefix_match = re.match(r'(GTX|RTX|GT|RX|R5|R)(\d+)', raw_model)
-    if not prefix_match:
-        return None
-
-    prefix = prefix_match.group(1)
-    number = prefix_match.group(2)
+    prefix = match.group(1).upper()  # e.g. RTX
+    number = match.group(2)          # e.g. 4070
+    suffix_raw = match.group(3).strip().replace("-", "").replace(" ", "").lower()  # e.g. 's', 'ti', 'tisuper'
 
     manufacturer = manufacturer.lower() if manufacturer else ""
+
+    # Define allowed suffixes per manufacturer (normalized to lowercase, no spaces)
     if "nvidia" in manufacturer:
-        allowed_suffixes = ['', 'ti', 'super', 'tisuper', 'ti super']
+        allowed_suffixes = {
+            '': '',
+            'ti': 'Ti',
+            'super': 'Super',
+            'tisuper': 'Ti Super',
+            'tis': 'Ti Super',
+            's': 'Super',
+        }
     elif "amd" in manufacturer:
-        allowed_suffixes = ['', 'x', 'xt', 'xtx', 'gre']
+        allowed_suffixes = {
+            '': '',
+            'x': 'X',
+            'xt': 'XT',
+            'xtx': 'XTX',
+            'gre': 'GRE',
+        }
     else:
-        allowed_suffixes = ['']
+        allowed_suffixes = {'': ''}
 
-    # Regex to find suffix: allow optional dash or space between model and suffix
-    # Suffix is expected to be letters and/or numbers immediately after model
-    suffix_pattern = re.compile(
-        rf'{prefix}\s*{number}[- ]*([a-z0-9]+)?', re.IGNORECASE)
-
-    suffix = ""
-    suffix_match = suffix_pattern.search(desc)
-    if suffix_match and suffix_match.group(1):
-        raw_suffix = suffix_match.group(1).lower().replace(" ", "").replace("-", "")
-
-        # Normalize common combined suffixes
-        if raw_suffix in ['tisuper', 'tisuper']:
-            raw_suffix = 'tisuper'
-
-        if raw_suffix in allowed_suffixes:
-            if raw_suffix == '':
-                suffix = ""
-            elif raw_suffix == 'ti':
-                suffix = 'Ti'
-            elif raw_suffix == 'super':
-                suffix = 'Super'
-            elif raw_suffix == 'tisuper':
-                suffix = 'Ti Super'
-            elif raw_suffix == 'x':
-                suffix = 'X'
-            elif raw_suffix == 'xt':
-                suffix = 'XT'
-            elif raw_suffix == 'xtx':
-                suffix = 'XTX'
-            elif raw_suffix == 'gre':
-                suffix = 'GRE'
-        else:
-            suffix = ""
+    # Find suffix that starts the suffix_raw string (some suffixes might be combined or longer)
+    suffix = ''
+    for key in sorted(allowed_suffixes.keys(), key=len, reverse=True):
+        if suffix_raw.startswith(key):
+            suffix = allowed_suffixes[key]
+            break
 
     model_str = f"{prefix} {number}"
     if suffix:
         model_str += f" {suffix}"
 
     return model_str
+
 
 
 def get_price(price_text):

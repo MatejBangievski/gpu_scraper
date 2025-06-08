@@ -33,6 +33,29 @@ def load_products_and_btn():
     return product_grid.find_elements(By.XPATH, "./div"), next_page_btn
 
 
+def get_pagination_last_page():
+    wait = WebDriverWait(browser, 10)
+    div_products = wait.until(
+        EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/div[2]/div/div[2]/div/div[2]/div[2]"))
+    )
+
+    # Child divs - 0 = grid, 1 = pagination 0 - with wait
+    child_divs = WebDriverWait(div_products, 10).until(
+        EC.presence_of_all_elements_located((By.XPATH, "./div"))
+    )
+
+    # Pagination
+    pagination = child_divs[1]
+
+    # Get number of pages
+    pages_div = pagination.find_element(By.TAG_NAME, "div").find_element(By.TAG_NAME, "div")
+    buttons = pages_div.find_elements(By.TAG_NAME, "button")
+
+    last_page = int(buttons[-1].text.strip())
+
+    return last_page
+
+
 def generate_product_url(base_url, description):
     # Lowercase
     url_part = description.lower()
@@ -76,38 +99,13 @@ if __name__ == "__main__":
         text = button.get_attribute("textContent").strip()
         brands.append(text.lower())
 
-    # Div with products grid and pages
-    wait = WebDriverWait(browser, 10)
-    div_products = wait.until(
-        EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/div[2]/div/div[2]/div/div[2]/div[2]"))
-    )
-
-    # Child divs - 0 = grid, 1 = pagination 0 - with wait
-    child_divs = WebDriverWait(div_products, 10).until(
-        EC.presence_of_all_elements_located((By.XPATH, "./div"))
-    )
-
-    # Product grid
-    product_grid = child_divs[0]
-
-    # Pagination
-    pagination = child_divs[1]
-
-    # Get number of pages
-    pages_div = pagination.find_element(By.TAG_NAME, "div").find_element(By.TAG_NAME, "div")
-    buttons = pages_div.find_elements(By.TAG_NAME, "button")
-
-    last_page = int(buttons[-1].text.strip())
-
-    # Get next page arrow
-    next_page_btn = pagination.find_element(By.TAG_NAME, "div").find_elements(By.TAG_NAME, "button")[-1]
-
+    last_page = get_pagination_last_page()
 
     # Iterate through each direct child div
     for _ in range(last_page):
         product_divs, next_page_btn = load_products_and_btn()
 
-        for index, product in enumerate(product_divs):
+        for product in product_divs:
             child_product_divs = product.find_elements(By.XPATH, "./div")
 
             # Image
