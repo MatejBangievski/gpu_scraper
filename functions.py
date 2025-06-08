@@ -1,0 +1,283 @@
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException  # Try-Catch
+
+from constants import NVIDIA_KEYWORDS
+
+import re  # Regex
+import psycopg2  # SQL
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        dbname="gpu_products_db",
+        user="postgres",
+        password="admin",
+        host="localhost",
+        port="5432"
+    )
+
+
+def initialize_scraping():
+    conn = get_db_connection()
+    existing_gpus = load_existing_gpus(conn)
+    return conn, existing_gpus
+
+
+def get_db_connection():
+    return psycopg2.connect(
+        dbname="gpu_products_db",
+        user="postgres",
+        password="admin",
+        host="localhost",
+        port="5432"
+    )
+
+
+def load_existing_gpus(conn):
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT g.manufacturer, g.brand, g.model, g.vram
+            FROM gpu g
+            JOIN component c ON g.component_id = c.id
+        """)
+        return set((m, b, mo, v) for m, b, mo, v in cur.fetchall())
+
+
+def initialize_browser(start_url):
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-dev-shm-usage")
+
+    browser = webdriver.Chrome(options=options)
+    browser.get(start_url)
+
+    return browser
+
+
+def add_store(conn, name, url):
+    with conn.cursor() as cur:
+        cur.execute("""
+            INSERT INTO store (name, website_url)
+            VALUES (%s, %s)
+            ON CONFLICT (name) DO NOTHING
+            RETURNING id;
+        """, (name, url))
+        res = cur.fetchone()
+        if res:
+            return res[0]
+        cur.execute("SELECT id FROM store WHERE name=%s;", (name,))
+        return cur.fetchone()[0]
+
+
+def add_gpu(conn, description, manufacturer, brand, model,
+            vram, store_id, price, club_price, available, img_url, url, existing_gpus):
+
+    brand = brand.strip().upper()
+    key = (manufacturer, brand, model, vram)
+
+    with conn.cursor() as cur:
+        cur.execute("""
+            SELECT id, component_id, price, club_price, available
+            FROM product_listing
+            WHERE url = %s
+            LIMIT 1;
+        """, (url,))
+        listing = cur.fetchone()
+
+        if listing:
+            listing_id, component_id, existing_price, existing_club_price, existing_available = listing
+            if (existing_price != price or
+                    existing_club_price != club_price or
+                    existing_available != available):
+                cur.execute("""
+                    UPDATE product_listing
+                    SET price = %s, club_price = %s, available = %s
+                    WHERE id = %s;
+                """, (price, club_price, available, listing_id))
+            existing_gpus.add(key)
+            return
+
+        cur.execute("""
+            SELECT g.component_id
+            FROM gpu g
+            JOIN component c ON g.component_id = c.id
+            WHERE g.manufacturer = %s
+              AND g.brand = %s
+              AND g.model = %s
+              AND (g.vram IS NOT DISTINCT FROM %s)
+            LIMIT 1;
+        """, (manufacturer, brand, model, vram))
+        row = cur.fetchone()
+
+        if row:
+            component_id = row[0]
+            existing_gpus.add(key)
+
+        else:
+            cur.execute("""
+                INSERT INTO component (type)
+                VALUES (%s)
+                RETURNING id;
+            """, ("GPU",))
+            component_id = cur.fetchone()[0]
+
+            cur.execute("""
+                INSERT INTO gpu (component_id, manufacturer, brand, model, vram)
+                VALUES (%s, %s, %s, %s, %s);
+            """, (component_id, manufacturer, brand, model, vram))
+
+            existing_gpus.add(key)
+
+        cur.execute("""
+            INSERT INTO product_listing (component_id, store_id, price, club_price, available, description, img_url, url)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+        """, (component_id, store_id, price, club_price, available, description, img_url, url))
+
+
+def extract_vram(desc):
+    # Normalize the string
+    desc = desc.upper()
+
+    # Look for patterns like '16GB', '32GDDR6', 'O16G', etc.
+    vram_pattern = re.compile(r'(?<!\d)(?:O)?(\d{1,3})(?=\s?(G|GB|GDDR|GD))')
+    matches = vram_pattern.findall(desc)
+
+    if matches:
+        # Extract the most likely correct match — typically the largest value
+        vram_values = [int(match[0].lstrip('0') or '0') for match in matches]
+        return max(vram_values)  # Return the largest VRAM found
+
+    return None
+
+
+# def extract_model(desc):
+#     desc_upper = desc.upper()
+#
+#     # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R, R5
+#     model_pattern = re.compile(
+#         r'((GTX|RTX|GT|RX|R5|R)(\s?\d{2,4}))', re.IGNORECASE)
+#
+#     match = model_pattern.search(desc)
+#     if not match:
+#         return None
+#
+#     raw_model = match.group(1).upper().replace(" ", "")  # e.g. GTX1050, R5230
+#
+#     # Extract prefix (GTX, RX, etc) and number separately
+#     prefix_match = re.match(r'(GTX|RTX|GT|RX|R5|R)(\d+)', raw_model)
+#     if not prefix_match:
+#         return None
+#
+#     prefix = prefix_match.group(1)
+#     number = prefix_match.group(2)
+#
+#     # Look for suffix (Ti, XT, XTX, Super, S)
+#     # Search after the matched model in the original string for suffixes
+#     suffix_pattern = re.compile(rf'{prefix}{number}[- ]?([A-Z0-9]+)?', re.IGNORECASE)
+#     suffix_match = suffix_pattern.search(desc.replace(" ", ""))
+#
+#     suffix = ""
+#     if suffix_match and suffix_match.group(1):
+#         raw_suffix = suffix_match.group(1).lower()
+#         if 'super' in raw_suffix or raw_suffix == 's':
+#             suffix = 'Super'
+#         elif 'ti' in raw_suffix:
+#             suffix = 'Ti'
+#         elif 'xtx' in raw_suffix:
+#             suffix = 'XTX'
+#         elif 'xt' in raw_suffix:
+#             suffix = 'XT'
+#         elif raw_suffix == 'x':
+#             suffix = 'X'
+#
+#     # Format output with space and suffix if any
+#     model_str = f"{prefix} {number}"
+#     if suffix:
+#         model_str += f" {suffix}"
+#
+#     return model_str
+
+def extract_model(desc, manufacturer):
+    import re
+
+    desc_upper = desc.upper()
+
+    # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R5, R
+    model_pattern = re.compile(
+        r'((GTX|RTX|GT|RX|R5|R)(\s?\d{2,4}))', re.IGNORECASE)
+
+    match = model_pattern.search(desc)
+    if not match:
+        return None
+
+    raw_model = match.group(1).upper().replace(" ", "")  # e.g. GTX1050, R5230
+
+    prefix_match = re.match(r'(GTX|RTX|GT|RX|R5|R)(\d+)', raw_model)
+    if not prefix_match:
+        return None
+
+    prefix = prefix_match.group(1)
+    number = prefix_match.group(2)
+
+    manufacturer = manufacturer.lower() if manufacturer else ""
+    if "nvidia" in manufacturer:
+        allowed_suffixes = ['', 'ti', 'super', 'tisuper', 'ti super']
+    elif "amd" in manufacturer:
+        allowed_suffixes = ['', 'x', 'xt', 'xtx', 'gre']
+    else:
+        allowed_suffixes = ['']
+
+    # Regex to find suffix: allow optional dash or space between model and suffix
+    # Suffix is expected to be letters and/or numbers immediately after model
+    suffix_pattern = re.compile(
+        rf'{prefix}\s*{number}[- ]*([a-z0-9]+)?', re.IGNORECASE)
+
+    suffix = ""
+    suffix_match = suffix_pattern.search(desc)
+    if suffix_match and suffix_match.group(1):
+        raw_suffix = suffix_match.group(1).lower().replace(" ", "").replace("-", "")
+
+        # Normalize common combined suffixes
+        if raw_suffix in ['tisuper', 'tisuper']:
+            raw_suffix = 'tisuper'
+
+        if raw_suffix in allowed_suffixes:
+            if raw_suffix == '':
+                suffix = ""
+            elif raw_suffix == 'ti':
+                suffix = 'Ti'
+            elif raw_suffix == 'super':
+                suffix = 'Super'
+            elif raw_suffix == 'tisuper':
+                suffix = 'Ti Super'
+            elif raw_suffix == 'x':
+                suffix = 'X'
+            elif raw_suffix == 'xt':
+                suffix = 'XT'
+            elif raw_suffix == 'xtx':
+                suffix = 'XTX'
+            elif raw_suffix == 'gre':
+                suffix = 'GRE'
+        else:
+            suffix = ""
+
+    model_str = f"{prefix} {number}"
+    if suffix:
+        model_str += f" {suffix}"
+
+    return model_str
+
+
+def get_price(price_text):
+    price_number = re.sub(r"[^\d]", "", price_text)
+
+    if price_number == "":
+        return 0
+
+    return int(price_number)
+
+
+def get_manufacturer(product_name):
+    product_name_upper = product_name.upper()
+    return "Nvidia" if any(keyword in product_name_upper for keyword in NVIDIA_KEYWORDS) else "AMD"
