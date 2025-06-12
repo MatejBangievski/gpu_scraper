@@ -72,7 +72,6 @@ def add_store(conn, name, url):
 
 def add_gpu(conn, description, manufacturer, brand, model,
             vram, store_id, price, club_price, available, img_url, url, existing_gpus):
-
     brand = brand.strip().upper()
     key = (manufacturer, brand, model, vram)
 
@@ -151,75 +150,6 @@ def extract_vram(desc):
     return None
 
 
-# def extract_model(desc, manufacturer):
-#     import re
-#
-#     desc_upper = desc.upper()
-#
-#     # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R5, R
-#     model_pattern = re.compile(
-#         r'((GTX|RTX|GT|RX|R5|R)(\s?\d{2,4}))', re.IGNORECASE)
-#
-#     match = model_pattern.search(desc)
-#     if not match:
-#         return None
-#
-#     raw_model = match.group(1).upper().replace(" ", "")  # e.g. GTX1050, R5230
-#
-#     prefix_match = re.match(r'(GTX|RTX|GT|RX|R5|R)(\d+)', raw_model)
-#     if not prefix_match:
-#         return None
-#
-#     prefix = prefix_match.group(1)
-#     number = prefix_match.group(2)
-#
-#     manufacturer = manufacturer.lower() if manufacturer else ""
-#     if "nvidia" in manufacturer:
-#         allowed_suffixes = ['', 'ti', 'super', 'tisuper', 'ti super']
-#     elif "amd" in manufacturer:
-#         allowed_suffixes = ['', 'x', 'xt', 'xtx', 'gre']
-#     else:
-#         allowed_suffixes = ['']
-#
-#     # Regex to find suffix: allow optional dash or space between model and suffix
-#     # Suffix is expected to be letters and/or numbers immediately after model
-#     suffix_pattern = re.compile(
-#         rf'{prefix}\s*{number}[- ]*([a-z0-9]+)?', re.IGNORECASE)
-#
-#     suffix = ""
-#     suffix_match = suffix_pattern.search(desc)
-#     if suffix_match and suffix_match.group(1):
-#         raw_suffix = suffix_match.group(1).lower().replace(" ", "").replace("-", "")
-#
-#         # Normalize common combined suffixes
-#         if raw_suffix in ['tisuper', 'tisuper']:
-#             raw_suffix = 'tisuper'
-#
-#         if raw_suffix in allowed_suffixes:
-#             if raw_suffix == '':
-#                 suffix = ""
-#             elif raw_suffix == 'ti':
-#                 suffix = 'Ti'
-#             elif raw_suffix == 'super':
-#                 suffix = 'Super'
-#             elif raw_suffix == 'tisuper':
-#                 suffix = 'Ti Super'
-#             elif raw_suffix == 'x':
-#                 suffix = 'X'
-#             elif raw_suffix == 'xt':
-#                 suffix = 'XT'
-#             elif raw_suffix == 'xtx':
-#                 suffix = 'XTX'
-#             elif raw_suffix == 'gre':
-#                 suffix = 'GRE'
-#         else:
-#             suffix = ""
-#
-#     model_str = f"{prefix} {number}"
-#     if suffix:
-#         model_str += f" {suffix}"
-#
-#     return model_str
 def extract_model(desc, manufacturer):
     desc_upper = desc.upper()
 
@@ -232,7 +162,7 @@ def extract_model(desc, manufacturer):
         return None
 
     prefix = match.group(1).upper()  # e.g. RTX
-    number = match.group(2)          # e.g. 4070
+    number = match.group(2)  # e.g. 4070
     suffix_raw = match.group(3).strip().replace("-", "").replace(" ", "").lower()  # e.g. 's', 'ti', 'tisuper'
 
     manufacturer = manufacturer.lower() if manufacturer else ""
@@ -272,14 +202,14 @@ def extract_model(desc, manufacturer):
     return model_str
 
 
-
 def get_price(price_text):
-    price_number = re.sub(r"[^\d]", "", price_text)
+    cleaned = re.sub(r"[^\d,\.]", "", price_text)
+    cleaned = cleaned.replace('.', '').replace(',', '.')
 
-    if price_number == "":
+    try:
+        return int(float(cleaned))
+    except ValueError:
         return 0
-
-    return int(price_number)
 
 
 def get_manufacturer(product_name):

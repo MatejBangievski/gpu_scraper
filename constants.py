@@ -4,5 +4,6 @@ NVIDIA_KEYWORDS = ["GT", "GTX", "RTX", "GEFORCE", "NVIDIA"]
 
 # Brands that don't manufacture gpus
 UNSUPPORTED_BRANDS = [
-    "Cooler Master"
+    "Cooler Master",
+    "Thermal Grizzly"
 ]
