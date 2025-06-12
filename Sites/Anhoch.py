@@ -2,17 +2,17 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from functions import *  # Custom Functions
-from constants import UNSUPPORTED_BRANDS
+from utils.functions import *  # Custom Functions
 
 import math, time
 
-def load_products_and_btn():
+
+def load_products_and_btn(browser):
     WebDriverWait(browser, 20).until(
         EC.presence_of_element_located((By.CLASS_NAME, "search-result"))
     )
 
-    time.sleep(10) #TODO: CHANGE WITH BETTER IMPLEMENTATION
+    time.sleep(10)  # TODO: CHANGE WITH BETTER IMPLEMENTATION
 
     div_products = WebDriverWait(browser, 20).until(
         EC.presence_of_element_located((By.CLASS_NAME, "grid-view-products"))
@@ -30,7 +30,7 @@ def load_products_and_btn():
     return child_divs, next_page_btn
 
 
-def get_pagination_last_page():
+def get_pagination_last_page(browser):
     pages_div = WebDriverWait(browser, 10).until(
         EC.presence_of_element_located((By.CLASS_NAME, "showing-results"))
     )
@@ -42,22 +42,24 @@ def get_pagination_last_page():
 
     return num_pages
 
+
 def get_brand(desc):
-    return product_name.strip().split()[0]
+    return desc.strip().split()[0]
 
 
-if __name__ == "__main__":
+def run():
     conn, existing_gpus = initialize_scraping()
 
     store_id = add_store(conn, "Anhoch", "https://www.anhoch.com/")
 
-    #browser = initialize_browser('https://www.anhoch.com/categories/grafichki-karti/products?brand=&attribute=&toPrice=324980&inStockOnly=2&sort=latest&perPage=50&page=1')
-    browser = initialize_browser('https://www.anhoch.com/categories/grafichki-karti/products?inStockOnly=2&sort=latest&perPage=50&page=1')
+    # browser = initialize_browser('https://www.anhoch.com/categories/grafichki-karti/products?brand=&attribute=&toPrice=324980&inStockOnly=2&sort=latest&perPage=50&page=1')
+    browser = initialize_browser(
+        'https://www.anhoch.com/categories/grafichki-karti/products?inStockOnly=2&sort=latest&perPage=50&page=1')
 
-    last_page = get_pagination_last_page()
+    last_page = get_pagination_last_page(browser)
 
     for _ in range(last_page):
-        child_divs, next_page_btn = load_products_and_btn()
+        child_divs, next_page_btn = load_products_and_btn(browser)
         for product in child_divs:
             product = product.find_element(By.TAG_NAME, "div")
 
@@ -96,17 +98,23 @@ if __name__ == "__main__":
                 club_price = og_price
 
             try:
-                availablility_tag = product.find_element(By.CSS_SELECTOR, "ul.list-inline.product-badge").find_element(By.TAG_NAME, "li")
+                availablility_tag = product.find_element(By.CSS_SELECTOR, "ul.list-inline.product-badge").find_element(
+                    By.TAG_NAME, "li")
                 availability_text = availablility_tag.text.strip()
                 if availability_text == 'Нема на залиха':
                     available = False
             except:
                 available = True
 
-            add_gpu(conn, product_name, manufacturer, brand, model, vram, store_id, og_price, club_price, available, img_url, url, existing_gpus)
+            add_gpu(conn, product_name, manufacturer, brand, model, vram, store_id, og_price, club_price, available,
+                    img_url, url, existing_gpus)
 
         browser.execute_script("arguments[0].click();", next_page_btn)
 
     browser.quit()
     conn.commit()
     conn.close()
+
+
+if __name__ == "__main__":
+    run()

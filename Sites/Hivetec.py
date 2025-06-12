@@ -1,26 +1,26 @@
 import time
 
-from selenium.common import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.action_chains import ActionChains
 
-from functions import *  # Custom Functions
+from utils.functions import *  # Custom Functions
 
 import re
 
-def load_products_and_btn():
+
+def load_products_and_btn(browser):
     WebDriverWait(browser, 20).until(
         EC.presence_of_element_located(
             (By.XPATH, "/html/body/div[2]/div/div/div/div/div/section[2]/div/div[2]/div/div[2]/div")
         )
     )
 
-    time.sleep(10) #TODO: CHANGE WITH BETTER IMPLEMENTATION
+    time.sleep(10)  # TODO: CHANGE WITH BETTER IMPLEMENTATION
 
     page_div = browser.find_element(By.XPATH,
-                                  "/html/body/div[2]/div/div/div/div/div/section[2]/div/div[2]/div/div[2]/div")
+                                    "/html/body/div[2]/div/div/div/div/div/section[2]/div/div[2]/div/div[2]/div")
 
     child_divs = page_div.find_elements(By.XPATH, "./div")
 
@@ -34,16 +34,19 @@ def load_products_and_btn():
 
     return products, next_page_btn
 
-def get_pagination_last_page():
+
+def get_pagination_last_page(browser):
     pages_div = WebDriverWait(browser, 10).until(
-        EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/div/div/div/div/div/section[2]/div/div[2]/div/div[2]/div/div[3]/nav/ul"))
+        EC.presence_of_element_located(
+            (By.XPATH, "/html/body/div[2]/div/div/div/div/div/section[2]/div/div[2]/div/div[2]/div/div[3]/nav/ul"))
     )
 
     pages = pages_div.find_elements(By.TAG_NAME, "a")
 
-    last_page = int(pages[-2].text.strip()) # Second to last
+    last_page = int(pages[-2].text.strip())  # Second to last
 
     return last_page
+
 
 def get_price(text):
     match = re.search(r'([\d,]+\.\d+)', text)
@@ -53,17 +56,18 @@ def get_price(text):
         return int(price_float)
     return 0
 
-if __name__ == "__main__":
+
+def run():
     conn, existing_gpus = initialize_scraping()
 
     store_id = add_store(conn, "Hivetec", "https://hivetec.mk/en/")
 
     browser = initialize_browser('https://hivetec.mk/en/product-category/grafichki-karti/?per_page=24')
 
-    last_page = get_pagination_last_page()
+    last_page = get_pagination_last_page(browser)
 
     for _ in range(last_page):
-        product_divs, next_page_btn = load_products_and_btn()
+        product_divs, next_page_btn = load_products_and_btn(browser)
 
         for product in product_divs:
             img_url = product.find_element(By.TAG_NAME, "img").get_attribute("src")
@@ -102,12 +106,20 @@ if __name__ == "__main__":
             actions = ActionChains(browser)
             actions.move_to_element(product).perform()
 
-            brand = product.find_element(By.TAG_NAME, "tbody").find_element(By.CSS_SELECTOR, "span.wd-attr-term").find_element(By.TAG_NAME, "p").text.strip()
+            brand = product.find_element(By.TAG_NAME, "tbody").find_element(By.CSS_SELECTOR,
+                                                                            "span.wd-attr-term").find_element(
+                By.TAG_NAME, "p").text.strip()
 
-            add_gpu(conn, product_name, manufacturer, brand, model, vram, store_id, og_price, club_price, available, img_url, url, existing_gpus)
+            add_gpu(conn, product_name, manufacturer, brand, model, vram, store_id, og_price, club_price, available,
+                    img_url, url, existing_gpus)
 
-        browser.execute_script("arguments[0].click();", next_page_btn)  # JavaScript - Click the element passed (btn) as the first argument.
+        browser.execute_script("arguments[0].click();",
+                               next_page_btn)  # JavaScript - Click the element passed (btn) as the first argument.
 
     browser.quit()
     conn.commit()
     conn.close()
+
+
+if __name__ == "__main__":
+    run()

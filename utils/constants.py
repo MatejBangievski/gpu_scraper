@@ -1,4 +1,3 @@
-
 # Keywords used to detect Nvidia GPUs
 NVIDIA_KEYWORDS = ["GT", "GTX", "RTX", "GEFORCE", "NVIDIA"]
 

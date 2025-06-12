@@ -1,7 +1,5 @@
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException  # Try-Catch
-
-from constants import NVIDIA_KEYWORDS
+from utils.constants import NVIDIA_KEYWORDS
 
 import re  # Regex
 import psycopg2  # SQL
@@ -153,7 +151,6 @@ def extract_vram(desc):
 def extract_model(desc, manufacturer):
     desc_upper = desc.upper()
 
-    # Match Nvidia/AMD GPU prefixes with numbers: GTX, RTX, RX, GT, R5, R
     model_pattern = re.compile(
         r'(GTX|RTX|GT|RX|R5|R)\s?(\d{2,4})([A-Z0-9 ]*)', re.IGNORECASE)
 
@@ -161,9 +158,9 @@ def extract_model(desc, manufacturer):
     if not match:
         return None
 
-    prefix = match.group(1).upper()  # e.g. RTX
-    number = match.group(2)  # e.g. 4070
-    suffix_raw = match.group(3).strip().replace("-", "").replace(" ", "").lower()  # e.g. 's', 'ti', 'tisuper'
+    prefix = match.group(1).upper()
+    number = match.group(2)
+    suffix_raw = match.group(3).strip().replace("-", "").replace(" ", "").lower()
 
     manufacturer = manufacturer.lower() if manufacturer else ""
 
@@ -188,10 +185,9 @@ def extract_model(desc, manufacturer):
     else:
         allowed_suffixes = {'': ''}
 
-    # Find suffix that starts the suffix_raw string (some suffixes might be combined or longer)
     suffix = ''
     for key in sorted(allowed_suffixes.keys(), key=len, reverse=True):
-        if suffix_raw.startswith(key):
+        if suffix_raw == key:
             suffix = allowed_suffixes[key]
             break
 

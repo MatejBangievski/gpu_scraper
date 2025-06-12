@@ -2,11 +2,11 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-from functions import *  # Custom Functions
-from constants import UNSUPPORTED_BRANDS
+from utils.functions import *  # Custom Functions
+from utils.constants import UNSUPPORTED_BRANDS
 
 
-if __name__ == "__main__":
+def run():
     conn, existing_gpus = initialize_scraping()
 
     store_id = add_store(conn, "Insomnia", "https://insomnia.mk/")
@@ -72,8 +72,13 @@ if __name__ == "__main__":
         if brand in UNSUPPORTED_BRANDS:
             continue
 
-        add_gpu(conn, product_name, manufacturer, brand, model, vram, store_id, og_price, club_price, available, img_url, url, existing_gpus)
+        add_gpu(conn, product_name, manufacturer, brand, model, vram, store_id, og_price, club_price, available,
+                img_url, url, existing_gpus)
 
     browser.quit()
     conn.commit()
     conn.close()
+
+if __name__ == "__main__":
+    run()
+

@@ -1,14 +1,14 @@
-from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 from urllib.parse import urlparse, parse_qs, unquote  # Image extract url
-from functions import *  # Custom Functions
+from utils.functions import *  # Custom Functions
 
 import re  # Regex
 
-def load_products_and_btn():
+
+def load_products_and_btn(browser):
     wait = WebDriverWait(browser, 10)
 
     div_products = wait.until(
@@ -28,7 +28,7 @@ def load_products_and_btn():
     return product_grid.find_elements(By.XPATH, "./div"), next_page_btn
 
 
-def get_pagination_last_page():
+def get_pagination_last_page(browser):
     wait = WebDriverWait(browser, 10)
     div_products = wait.until(
         EC.presence_of_element_located((By.XPATH, "/html/body/div[2]/div[2]/div/div[2]/div/div[2]/div[2]"))
@@ -59,7 +59,7 @@ def generate_product_url(base_url, description):
     return full_url
 
 
-if __name__ == "__main__":
+def run():
     conn, existing_gpus = initialize_scraping()
 
     store_id = add_store(conn, "Setec", "https://setec.mk/")
@@ -83,10 +83,10 @@ if __name__ == "__main__":
         text = button.get_attribute("textContent").strip()
         brands.append(text.lower())
 
-    last_page = get_pagination_last_page()
+    last_page = get_pagination_last_page(browser)
 
     for _ in range(last_page):
-        product_divs, next_page_btn = load_products_and_btn()
+        product_divs, next_page_btn = load_products_and_btn(browser)
 
         for product in product_divs:
             child_product_divs = product.find_elements(By.XPATH, "./div")
@@ -146,3 +146,7 @@ if __name__ == "__main__":
     browser.quit()
     conn.commit()
     conn.close()
+
+
+if __name__ == "__main__":
+    run()
