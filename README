@@ -1,8 +1,7 @@
-## Web Scraper for Graphics Cards ##
-
-### Scrapes from the following sites: ###
-* Anhoch
-* Setec
-* Neptun
-* Hivetec
-* Insomnia
+# Web Scraper for Graphics Cards
+### Scrapes from the following sites:
+* [Anhoch](https://www.anhoch.com/)
+* [Setec](https://www.setec.mk/)
+* [Neptun](https://www.neptun.mk/)
+* [Hivetec](https://www.hivetec.mk/)
+* [Insomnia](https://www.insomnia.mk/)
