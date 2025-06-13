@@ -1,0 +1,4 @@
+selenium
+pandas
+psycopg2-binary
+beautifulsoup4
