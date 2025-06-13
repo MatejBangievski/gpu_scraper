@@ -1,3 +1,4 @@
+from selenium.common import NoSuchElementException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
@@ -57,6 +58,15 @@ def generate_product_url(base_url, description):
 
     full_url = base_url.rstrip("/") + "/" + url_part
     return full_url
+
+
+def get_price(price_text):
+    price_number = re.sub(r"[^\d]", "", price_text)
+
+    if price_number == "":
+        return 0
+
+    return int(price_number)
 
 
 def run():

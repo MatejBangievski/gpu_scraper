@@ -160,8 +160,9 @@ def extract_model(desc, manufacturer):
 
     prefix = match.group(1).upper()
     number = match.group(2)
-    suffix_raw = match.group(3).strip().replace("-", "").replace(" ", "").lower()
-
+    suffix_part = match.group(3).strip().lower()
+    first_word = re.split(r'\W+', suffix_part)[0]  # split on non-alphanumeric characters
+    first_word = first_word.replace('-', '').replace(' ', '')
     manufacturer = manufacturer.lower() if manufacturer else ""
 
     # Define allowed suffixes per manufacturer (normalized to lowercase, no spaces)
@@ -187,7 +188,7 @@ def extract_model(desc, manufacturer):
 
     suffix = ''
     for key in sorted(allowed_suffixes.keys(), key=len, reverse=True):
-        if suffix_raw == key:
+        if first_word == key:
             suffix = allowed_suffixes[key]
             break
 
